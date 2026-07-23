@@ -5,8 +5,8 @@ compatibility_date = "2025-01-01"
 # Optional: restrict CORS to your actual GitHub Pages URL once it's live.
 # Set this as a plain variable (not a secret) once you know your domain:
 #
-# [vars]
-# ALLOWED_ORIGIN = "https://yourusername.github.io"
+[vars]
+ALLOWED_ORIGIN = "https://colesr.github.io/Oliver.AI/"
 #
 # Leaving it unset defaults to "*" (any origin) inside worker.js — fine
 # for testing, but tighten it before you consider this "done."
