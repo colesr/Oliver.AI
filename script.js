@@ -12,7 +12,7 @@
 
   // Replace with your deployed worker URL, e.g.
   // "https://oliver-chat-worker.yoursubdomain.workers.dev"
-  const WORKER_URL = "https://oliver-chat-worker.YOUR-SUBDOMAIN.workers.dev";
+  const WORKER_URL = "https://oliver-chat-worker.cole-colesr-sam.workers.dev";
 
   const form = document.getElementById("chatForm");
   const input = document.getElementById("chatInput");
