@@ -21,7 +21,7 @@
 
   // Replace with your deployed worker URL, e.g.
   // "https://oliver-chat-worker.yoursubdomain.workers.dev"
-  const WORKER_URL = "https://oliver-chat-worker.cole-colesr-sam.workers.dev";
+  const WORKER_URL = "https://oliver-chat-worker.YOUR-SUBDOMAIN.workers.dev";
   const CHAT_ENDPOINT = WORKER_URL + "/chat";
   const FEEDBACK_ENDPOINT = WORKER_URL + "/feedback";
 
@@ -162,8 +162,14 @@
   }
 
   async function getOliverReply(userText) {
-    // Send only role/content to the model — vote metadata stays local.
-    const apiHistory = history.map((m) => ({ role: m.role, content: m.content }));
+    // Send only role/content to the model, and exclude the message we're
+    // about to send — it's already in `history` (just pushed by the
+    // caller) but the worker expects it separately as `message`, with
+    // `history` being everything BEFORE it. Including it in both would
+    // make it look like the user said it twice.
+    const apiHistory = history
+      .slice(0, -1)
+      .map((m) => ({ role: m.role, content: m.content }));
 
     const res = await fetch(CHAT_ENDPOINT, {
       method: "POST",
