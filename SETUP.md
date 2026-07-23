@@ -91,6 +91,35 @@ const WORKER_URL = "https://oliver-chat-worker.YOUR-SUBDOMAIN.workers.dev";
 Replace it with the real URL Wrangler gave you. Commit and push to
 GitHub, and your live site will now be talking to Claude for real.
 
+## 6b. Create the KV namespace for feedback
+
+This is what lets upvotes/downvotes steer Oliver's tone over time.
+
+From inside `oliver-worker`:
+
+```bash
+wrangler kv namespace create FEEDBACK
+```
+
+This prints something like:
+
+```
+[[kv_namespaces]]
+binding = "FEEDBACK"
+id = "abc123yourrealidhere"
+```
+
+Copy that `id` value into your `wrangler.toml`, replacing
+`PASTE_YOUR_KV_NAMESPACE_ID_HERE`. Then redeploy:
+
+```bash
+wrangler deploy
+```
+
+If you skip this step, the chat still works fine — voting just won't
+persist or influence future replies (the worker silently no-ops if the
+KV binding isn't there).
+
 ## 7. (Recommended) Lock down CORS
 
 Right now the worker accepts requests from any website. Once you know
