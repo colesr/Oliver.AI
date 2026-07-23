@@ -1,16 +1,22 @@
 /**
  * Oliver — chat backend (Cloudflare Worker)
  * -----------------------------------------------------------------------
- * Holds the Anthropic API key as a secret and proxies chat messages from
- * the front-end to Claude, with a system prompt that defines "Oliver" as
- * an original AI tribute character — chaotic, funny, inspired by that
- * whole DIY-internet alter-ego world — NOT a live impersonation of the
- * real Oliver Tree.
+ * Two routes:
+ *   POST /chat      -> forwards a message to Claude with Oliver's voice
+ *   POST /feedback   -> records an upvote/downvote on a specific reply
  *
- * Deploy this with Wrangler (see SETUP.md for the full walkthrough).
+ * "Learning" from votes: this is NOT model fine-tuning — there's no
+ * weight update happening. Instead, recent liked/disliked (message,
+ * reply) pairs are stored in Cloudflare KV, and a handful of the most
+ * recent examples of each are folded into the system prompt as style
+ * notes before every new request. This nudges tone in-context, site-
+ * wide, based on real reactions — it's lightweight and transparent
+ * about being a prompting trick, not real training.
+ *
+ * Requires a KV namespace bound as FEEDBACK (see SETUP.md).
  */
 
-const SYSTEM_PROMPT = `
+const BASE_SYSTEM_PROMPT = `
 You are "Oliver," an original AI character on a fan-made tribute website
 for the musician Oliver Tree, who passed away in 2026.
 
@@ -66,81 +72,163 @@ Hard boundaries:
   frame and gently redirect with humor.
 `.trim();
 
+const FEEDBACK_KEY = "recent_feedback";
+const MAX_STORED_FEEDBACK = 60;   // total entries kept in KV
+const EXAMPLES_PER_SIDE = 4;      // how many up/down examples to fold into the prompt
+
+function corsHeaders(env) {
+  return {
+    "Access-Control-Allow-Origin": env.ALLOWED_ORIGIN || "*",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+  };
+}
+
+function json(body, status, headers) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...headers, "Content-Type": "application/json" },
+  });
+}
+
+async function getFeedbackList(env) {
+  if (!env.FEEDBACK) return [];
+  const raw = await env.FEEDBACK.get(FEEDBACK_KEY);
+  if (!raw) return [];
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return [];
+  }
+}
+
+async function saveFeedbackList(env, list) {
+  if (!env.FEEDBACK) return;
+  await env.FEEDBACK.put(FEEDBACK_KEY, JSON.stringify(list));
+}
+
+// Builds a short "style notes" addendum from recent votes.
+function buildSteeringNotes(feedbackList) {
+  const liked = feedbackList.filter((f) => f.vote === "up").slice(-EXAMPLES_PER_SIDE);
+  const disliked = feedbackList.filter((f) => f.vote === "down").slice(-EXAMPLES_PER_SIDE);
+
+  if (liked.length === 0 && disliked.length === 0) return "";
+
+  let notes = "\n\nRecent audience reactions (use as style guidance, not literal " +
+    "scripts to reuse verbatim):\n";
+
+  if (liked.length > 0) {
+    notes += "\nReplies that LANDED WELL (keep doing things like this):\n";
+    liked.forEach((f) => {
+      notes += `- "${f.reply}"\n`;
+    });
+  }
+
+  if (disliked.length > 0) {
+    notes += "\nReplies that FELL FLAT (avoid this pattern):\n";
+    disliked.forEach((f) => {
+      notes += `- "${f.reply}"\n`;
+    });
+  }
+
+  return notes;
+}
+
+async function handleChat(request, env, headers) {
+  const { message, history } = await request.json();
+
+  if (!message || typeof message !== "string" || message.length > 500) {
+    return json({ error: "Invalid message" }, 400, headers);
+  }
+
+  const recentHistory = Array.isArray(history) ? history.slice(-8) : [];
+
+  const messages = [
+    ...recentHistory.map((m) => ({
+      role: m.role === "user" ? "user" : "assistant",
+      content: String(m.content).slice(0, 500),
+    })),
+    { role: "user", content: message },
+  ];
+
+  const feedbackList = await getFeedbackList(env);
+  const systemPrompt = BASE_SYSTEM_PROMPT + buildSteeringNotes(feedbackList);
+
+  const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": env.ANTHROPIC_API_KEY,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-6",
+      max_tokens: 300,
+      system: systemPrompt,
+      messages,
+    }),
+  });
+
+  if (!anthropicRes.ok) {
+    const errText = await anthropicRes.text();
+    console.error("Anthropic API error:", errText);
+    return json({ error: "Upstream error" }, 502, headers);
+  }
+
+  const data = await anthropicRes.json();
+  const reply = data.content?.find((b) => b.type === "text")?.text?.trim()
+    || "brain buffered. try that again?";
+
+  return json({ reply }, 200, headers);
+}
+
+async function handleFeedback(request, env, headers) {
+  const { message, reply, vote } = await request.json();
+
+  if (
+    typeof message !== "string" ||
+    typeof reply !== "string" ||
+    (vote !== "up" && vote !== "down") ||
+    message.length > 500 ||
+    reply.length > 500
+  ) {
+    return json({ error: "Invalid feedback payload" }, 400, headers);
+  }
+
+  const feedbackList = await getFeedbackList(env);
+  feedbackList.push({ message, reply, vote, ts: Date.now() });
+
+  // Keep only the most recent N entries so KV storage and prompt size
+  // stay bounded.
+  const trimmed = feedbackList.slice(-MAX_STORED_FEEDBACK);
+  await saveFeedbackList(env, trimmed);
+
+  return json({ ok: true }, 200, headers);
+}
+
 export default {
   async fetch(request, env) {
-    // --- CORS ---------------------------------------------------------
-    const corsHeaders = {
-      "Access-Control-Allow-Origin": env.ALLOWED_ORIGIN || "*",
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
-    };
+    const headers = corsHeaders(env);
+    const url = new URL(request.url);
 
     if (request.method === "OPTIONS") {
-      return new Response(null, { headers: corsHeaders });
+      return new Response(null, { headers });
     }
 
     if (request.method !== "POST") {
-      return new Response("Method not allowed", { status: 405, headers: corsHeaders });
+      return new Response("Method not allowed", { status: 405, headers });
     }
 
     try {
-      const { message, history } = await request.json();
-
-      if (!message || typeof message !== "string" || message.length > 500) {
-        return new Response(JSON.stringify({ error: "Invalid message" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+      if (url.pathname === "/feedback") {
+        return await handleFeedback(request, env, headers);
       }
-
-      // Keep only the last few turns to bound cost/tokens.
-      const recentHistory = Array.isArray(history) ? history.slice(-8) : [];
-
-      const messages = [
-        ...recentHistory.map((m) => ({
-          role: m.role === "user" ? "user" : "assistant",
-          content: String(m.content).slice(0, 500),
-        })),
-        { role: "user", content: message },
-      ];
-
-      const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": env.ANTHROPIC_API_KEY,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-6",
-          max_tokens: 300,
-          system: SYSTEM_PROMPT,
-          messages,
-        }),
-      });
-
-      if (!anthropicRes.ok) {
-        const errText = await anthropicRes.text();
-        console.error("Anthropic API error:", errText);
-        return new Response(JSON.stringify({ error: "Upstream error" }), {
-          status: 502,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      const data = await anthropicRes.json();
-      const reply = data.content?.find((b) => b.type === "text")?.text?.trim()
-        || "brain buffered. try that again?";
-
-      return new Response(JSON.stringify({ reply }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      // Default route (also accepts "/" for backwards compatibility
+      // with earlier front-end versions).
+      return await handleChat(request, env, headers);
     } catch (err) {
       console.error("Worker error:", err);
-      return new Response(JSON.stringify({ error: "Something broke" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: "Something broke" }, 500, headers);
     }
   },
 };

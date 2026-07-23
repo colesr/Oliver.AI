@@ -2,6 +2,14 @@ name = "oliver-chat-worker"
 main = "worker.js"
 compatibility_date = "2025-01-01"
 
+# KV namespace for storing upvote/downvote feedback used to steer
+# Oliver's tone. Create the namespace with:
+#   wrangler kv namespace create FEEDBACK
+# then paste the id it prints into this block (see SETUP.md).
+[[kv_namespaces]]
+binding = "FEEDBACK"
+id = "209938042ef14c37975647557e3fdea7"
+
 # Optional: restrict CORS to your actual GitHub Pages URL once it's live.
 # Set this as a plain variable (not a secret) once you know your domain:
 #
