@@ -21,7 +21,7 @@
 
   // Replace with your deployed worker URL, e.g.
   // "https://oliver-chat-worker.yoursubdomain.workers.dev"
-  const WORKER_URL = "https://oliver-chat-worker.YOUR-SUBDOMAIN.workers.dev";
+  const WORKER_URL = "https://oliver-chat-worker.cole-colesr-sam.workers.dev";
   const CHAT_ENDPOINT = WORKER_URL + "/chat";
   const FEEDBACK_ENDPOINT = WORKER_URL + "/feedback";
 
