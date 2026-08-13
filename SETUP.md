@@ -140,6 +140,20 @@ wrangler deploy
 This stops other sites from quietly using your worker (and your API
 credits) without permission.
 
+## 7b. (Optional) Pin a specific Anthropic model
+
+If Anthropic changes model availability, you can set a preferred model
+without changing code:
+
+```toml
+[vars]
+ALLOWED_ORIGIN = "https://yourusername.github.io"
+ANTHROPIC_MODEL = "claude-3-5-sonnet-latest"
+```
+
+The worker now also keeps fallback model IDs internally, but setting
+`ANTHROPIC_MODEL` lets you explicitly control which model it tries first.
+
 ## 8. Test it
 
 Open your GitHub Pages site, type a message to Oliver, and you should
