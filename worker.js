@@ -141,7 +141,12 @@ async function handleChat(request, env, headers) {
     return json({ error: "Invalid message" }, 400, headers);
   }
 
-  const recentHistory = Array.isArray(history) ? history.slice(-8) : [];
+  const rawHistory = Array.isArray(history) ? history.slice(-8) : [];
+  // Anthropic requires the first message to have role "user". The front-end
+  // includes a static welcome bubble (role: "assistant") at history[0], so
+  // drop any leading assistant turns before building the messages array.
+  const firstUserIdx = rawHistory.findIndex((m) => m.role === "user");
+  const recentHistory = firstUserIdx >= 0 ? rawHistory.slice(firstUserIdx) : [];
 
   const messages = [
     ...recentHistory.map((m) => ({
