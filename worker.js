@@ -76,9 +76,8 @@ const FEEDBACK_KEY = "recent_feedback";
 const MAX_STORED_FEEDBACK = 60;   // total entries kept in KV
 const EXAMPLES_PER_SIDE = 4;      // how many up/down examples to fold into the prompt
 const DEFAULT_MODEL_CANDIDATES = [
-  "claude-sonnet-4-6",
-  "claude-3-5-sonnet-latest",
   "claude-3-5-sonnet-20241022",
+  "claude-3-haiku-20240307",
 ];
 
 function corsHeaders(env) {
@@ -104,9 +103,35 @@ function getModelCandidates(env) {
   return [...new Set([...configuredModels, ...DEFAULT_MODEL_CANDIDATES])];
 }
 
-function isModelSelectionError(status, errorText) {
-  if (status !== 400) return false;
-  return /(model|not found|invalid.*model|unsupported.*model)/i.test(errorText);
+function isModelSelectionError(status, errorType, errorMessage) {
+  if (status !== 400 && status !== 404) return false;
+  const msgLooksModelRelated = /(model not found|unknown model|invalid model|unsupported model)/i
+    .test(errorMessage || "");
+  if (!msgLooksModelRelated) return false;
+  if (status === 404) return /not_found_error/i.test(errorType || "");
+  return /invalid_request_error/i.test(errorType || "");
+}
+
+function extractErrorInfo(rawErrorBody) {
+  try {
+    const parsed = JSON.parse(rawErrorBody);
+    const message = parsed?.error?.message;
+    const type = parsed?.error?.type;
+    if (message || type) {
+      return {
+        type: type || "",
+        message: message || "",
+        text: message && type ? `${type}: ${message}` : (message || type),
+      };
+    }
+  } catch {
+    // Non-JSON body, return as-is.
+  }
+  return {
+    type: "",
+    message: "",
+    text: rawErrorBody,
+  };
 }
 
 async function getFeedbackList(env) {
@@ -209,17 +234,18 @@ async function handleChat(request, env, headers) {
       return json({ reply }, 200, headers);
     }
 
-    const errText = await anthropicRes.text();
-    lastErrorText = errText;
-    console.error(`Anthropic API error for model "${model}":`, errText);
-    if (!isModelSelectionError(anthropicRes.status, errText)) {
-      return json({ error: "Upstream error", detail: errText.slice(0, 300) }, 502, headers);
+    const rawErrText = await anthropicRes.text();
+    const errorInfo = extractErrorInfo(rawErrText);
+    lastErrorText = errorInfo.text;
+    console.error(`Anthropic API error for model "${model}":`, errorInfo.text);
+    if (!isModelSelectionError(anthropicRes.status, errorInfo.type, errorInfo.message)) {
+      return json({ error: "Upstream error", detail: errorInfo.text.slice(0, 300) }, 502, headers);
     }
   }
 
   return json(
     {
-      error: "No supported Anthropic model available. Set ANTHROPIC_MODEL in worker vars.",
+      error: "No configured or fallback Anthropic model was available.",
       detail: lastErrorText.slice(0, 300),
     },
     502,

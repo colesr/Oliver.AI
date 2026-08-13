@@ -153,6 +153,8 @@ ANTHROPIC_MODEL = "claude-3-5-sonnet-latest"
 
 The worker now also keeps fallback model IDs internally, but setting
 `ANTHROPIC_MODEL` lets you explicitly control which model it tries first.
+You can also provide a comma-separated priority list, for example:
+`"claude-3-5-sonnet-latest,claude-3-haiku-20240307"`.
 
 ## 8. Test it
 
