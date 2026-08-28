@@ -391,6 +391,85 @@ img { max-width: 100%; display: block; }
   color: var(--text-muted);
 }
 
+.chat-setup {
+  padding: 1rem 1.2rem;
+  border-bottom: 1px solid var(--card-border);
+  background: rgba(41, 231, 255, 0.06);
+}
+
+.chat-setup__text {
+  margin: 0 0 0.85rem;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.chat-setup__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: center;
+}
+
+.chat-setup__label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.chat-setup select,
+.chat-setup button {
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  padding: 0.65rem 0.95rem;
+}
+
+.chat-setup select {
+  min-width: 210px;
+}
+
+.chat-setup button {
+  cursor: pointer;
+}
+
+.chat-setup button:hover,
+.chat-setup button:focus-visible {
+  border-color: var(--blue);
+  color: var(--blue);
+}
+
+.chat-setup__secondary {
+  background: transparent !important;
+}
+
+.chat-setup__progress {
+  margin-top: 0.95rem;
+}
+
+.chat-setup__progress-track {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  border: 1px solid var(--card-border);
+}
+
+.chat-setup__progress-bar {
+  width: 0;
+  height: 100%;
+  background: linear-gradient(90deg, var(--blue), var(--pink));
+  transition: width 0.2s ease;
+}
+
+.chat-setup__progress-text {
+  margin-top: 0.45rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
 .chat-window__clear {
   margin-left: auto;
   background: none;
@@ -571,6 +650,11 @@ img { max-width: 100%; display: block; }
 
 .chat-window__input button:hover { background: var(--pink); transform: scale(1.06); }
 .chat-window__input button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.chat-window__input input:disabled,
+.chat-window__input button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 
 /* ===========================================================
    FOOTER

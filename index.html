@@ -127,9 +127,25 @@
       <div class="chat-window__avatar">OT</div>
       <div>
         <div class="chat-window__name">Oliver <span class="chat-window__badge">AI TRIBUTE</span></div>
-        <div class="chat-window__status">bowl cut fully charged</div>
+        <div class="chat-window__status" id="chatStatus">checking WebGPU...</div>
       </div>
       <button type="button" class="chat-window__clear" id="clearChat" aria-label="Clear chat history">Clear</button>
+    </div>
+
+    <div class="chat-setup" id="chatSetup" hidden>
+      <p class="chat-setup__text" id="chatSetupText"></p>
+      <div class="chat-setup__controls">
+        <label class="chat-setup__label" for="modelSelect">Browser model</label>
+        <select id="modelSelect" aria-label="Choose a browser model"></select>
+        <button type="button" id="downloadModelBtn">Download &amp; run locally</button>
+        <button type="button" id="refreshBackendBtn" class="chat-setup__secondary">Retry</button>
+      </div>
+      <div class="chat-setup__progress" id="chatSetupProgress" hidden>
+        <div class="chat-setup__progress-track">
+          <div class="chat-setup__progress-bar" id="chatSetupProgressBar"></div>
+        </div>
+        <div class="chat-setup__progress-text" id="chatSetupProgressText">Waiting to start…</div>
+      </div>
     </div>
 
     <div class="chat-window__messages" id="chatMessages"></div>
@@ -147,6 +163,6 @@
   <p class="footer__small">Life goes on. 1993 — 2026.</p>
 </footer>
 
-<script src="script.js"></script>
+<script type="module" src="script.js"></script>
 </body>
 </html>
